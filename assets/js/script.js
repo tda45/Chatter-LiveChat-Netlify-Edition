@@ -5,9 +5,9 @@ const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
 let currentUser = "";
 let isCooldown = false;
-let userChannel; // Kullanıcı durumunu takip edecek kanal
+let userChannel;
 
-// 1. GİRİŞ VE HOŞGELDİN MESAJI
+// 1. GİRİŞ VE HOŞGELDİN
 document.getElementById("join-btn").onclick = async () => {
     const inputField = document.getElementById("username-input");
     const errorEl = document.getElementById("error-msg");
@@ -18,7 +18,6 @@ document.getElementById("join-btn").onclick = async () => {
         return;
     }
 
-    // Kullanıcı Adı Kontrolü (Presence üzerinden kontrol daha sağlıklıdır)
     const { data: existingUser } = await supabaseClient
         .from('active_users')
         .select('username')
@@ -30,7 +29,6 @@ document.getElementById("join-btn").onclick = async () => {
         return;
     }
 
-    // Kayıt ekle
     await supabaseClient.from('active_users').insert([{ username: nick }]);
 
     currentUser = nick;
@@ -38,31 +36,21 @@ document.getElementById("join-btn").onclick = async () => {
     document.getElementById("chat-screen").classList.add("active");
     document.getElementById("display-username").innerText = currentUser;
 
-    // OTOMATİK HOŞGELDİN MESAJI (SİSTEM)
     await sendSystemMessage(`${currentUser} Sunucuya Hoşgeldin!`);
 
-    // TAKİP SİSTEMİNİ BAŞLAT
     setupPresence(nick);
     loadMessages();
     subscribeMessages();
 };
 
-// --- KRİTİK GÜNCELLEME: PRESENCE (VARLIK) TAKİBİ ---
+// 2. PRESENCE (VARLIK) TAKİBİ
 function setupPresence(username) {
     userChannel = supabaseClient.channel('online-users', {
         config: { presence: { key: username } }
     });
 
     userChannel
-        .on('presence', { event: 'sync' }, () => {
-            // Senkronizasyon gerekirse buraya eklenebilir
-        })
-        .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-            console.log('Katıldı:', key);
-        })
-        .on('presence', { event: 'leave' }, async ({ key, leftPresences }) => {
-            // BİRİ ÇIKTIĞINDA: Eğer çıkan kişi bizim ismimizse veya bir başkasıysa veritabanından siliyoruz
-            console.log('Ayrıldı:', key);
+        .on('presence', { event: 'leave' }, async ({ key }) => {
             await supabaseClient.from('active_users').delete().eq('username', key);
             if (key !== "SİSTEM") {
                 await sendSystemMessage(`${key} Sunucudan Ayrıldı!`);
@@ -70,23 +58,19 @@ function setupPresence(username) {
         })
         .subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
-                // Kanala başarıyla girince "ben buradayım" bilgisini gönder
                 await userChannel.track({ online_at: new Date().toISOString() });
             }
         });
 }
 
-// 2. SİSTEM MESAJI GÖNDERİCİ
+// 3. MESAJ VE FOTOĞRAF GÖNDERME
 async function sendSystemMessage(text) {
-    await supabaseClient
-        .from('messages')
-        .insert([{ "user": "SİSTEM", "content": text }]);
+    await supabaseClient.from('messages').insert([{ "user": "SİSTEM", "content": text }]);
 }
 
-// 3. MESAJ GÖNDERME VE SPAM FİLTRESİ
-async function sendMessage() {
+async function sendMessage(customContent = null) {
     const input = document.getElementById("message-input");
-    const val = input.value.trim();
+    const val = customContent || input.value.trim();
     const spamOverlay = document.getElementById("spam-overlay");
 
     if (!val) return;
@@ -102,19 +86,32 @@ async function sendMessage() {
         .from('messages')
         .insert([{ "user": currentUser, "content": val }]);
     
-    if (!error) input.value = "";
+    if (!error && !customContent) input.value = "";
     setTimeout(() => { isCooldown = false; }, 1000);
 }
 
-// 4. AYRILMA BİLDİRİMİ (Manuel Çıkış Denemesi)
-window.addEventListener('beforeunload', () => {
-    if (currentUser && userChannel) {
-        // Kanalı kapatmak Presence 'leave' olayını tetikler
-        userChannel.unsubscribe();
+// --- YENİ: CTRL+V İLE FOTOĞRAF YAPIŞTIRMA ---
+document.getElementById("message-input").addEventListener("paste", function (e) {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    
+    for (let index in items) {
+        const item = items[index];
+        if (item.kind === 'file' && item.type.indexOf('image') !== -1) {
+            const blob = item.getAsFile();
+            const reader = new FileReader();
+            
+            reader.onload = function (event) {
+                const base64String = event.target.result;
+                // Base64 verisini doğrudan mesaj olarak gönderiyoruz
+                sendMessage(base64String);
+            };
+            
+            reader.readAsDataURL(blob);
+        }
     }
 });
 
-// 5. DİNLEME VE YÜKLEME
+// 4. DİNLEME VE RENDER
 function subscribeMessages() {
     supabaseClient
         .channel('public:messages')
@@ -139,13 +136,21 @@ function renderMessage(data) {
     
     const time = new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    // İçerik fotoğraf mı yoksa metin mi kontrol et (Base64 kontrolü)
+    let contentHTML = "";
+    if (data.content.startsWith("data:image")) {
+        contentHTML = `<img src="${data.content}" class="chat-img" style="max-width: 100%; border-radius: 10px; margin-top: 5px; border: 1px solid var(--cyber-red-glow);">`;
+    } else {
+        contentHTML = `<span class="m-text">${data.content}</span>`;
+    }
+
     div.innerHTML = `
         <span class="m-user">${data.user} <small>${time}</small></span>
-        <span class="m-text">${data.content}</span>
+        ${contentHTML}
     `;
     area.appendChild(div);
     area.scrollTop = area.scrollHeight;
 }
 
 document.getElementById("message-input").onkeyup = (e) => { if(e.key === "Enter") sendMessage(); };
-document.getElementById("send-btn").onclick = sendMessage;
+document.getElementById("send-btn").onclick = () => sendMessage();

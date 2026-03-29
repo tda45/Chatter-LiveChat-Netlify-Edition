@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatter LiveChat | Netlify Edition</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <section id="login-screen" class="active">
+        <div class="glass-card login-box">
+            <h1 class="neon-text">CHATTER</h1>
+            <p class="subtitle">NETLIFY EDITION</p>
+            <div class="input-group">
+                <input type="text" id="username-input" placeholder="Kullanıcı adı..." maxlength="15">
+                <button id="join-btn">BAĞLAN</button>
+            </div>
+            <p id="error-msg" class="error-msg"></p>
+        </div>
+    </section>
+
+    <section id="chat-screen">
+        <div class="glass-card chat-container">
+            <header>
+                <div class="user-profile">
+                    <div class="online-indicator"></div>
+                    <span id="display-username">Misafir</span>
+                </div>
+                <div class="brand">CHATTER <span class="v2">v2.0</span></div>
+            </header>
+
+            <div id="chat-messages" class="messages-area">
+                </div>
+
+            <div class="input-area">
+                <input type="text" id="message-input" placeholder="Mesaj gönder..." autocomplete="off">
+                <button id="send-btn">
+                    <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <script src="assets/js/script.js"></script>
+</body>
+</html>

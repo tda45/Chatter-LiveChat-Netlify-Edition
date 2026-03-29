@@ -1,141 +1,122 @@
+// --- CONFIG ---
 const SB_URL = "https://dxmqmgxwjrrrhubpnphf.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4bXFtZ3h3anJycmh1YnBucGhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3OTQwOTksImV4cCI6MjA5MDM3MDA5OX0.U_pCKGG3EDCkmjBtUvJSXqv7UUTpN-gML4UHyRl89AM";
-
 const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
 let currentUser = "";
 let isCooldown = false;
 
-// 1. TEMİZLİK VE GİRİŞ
-async function cleanOldMessages() {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    await supabaseClient.from('messages').delete().lt('created_at', twentyFourHoursAgo);
+// --- 1. FONKSİYONLAR ---
+
+// Eski Mesajları Sil (24 Saat)
+async function autoClean() {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await supabaseClient.from('messages').delete().lt('created_at', yesterday);
 }
 
+// Sistem Mesajı Gönder
+async function sendSys(txt) {
+    await supabaseClient.from('messages').insert([{ user: "SİSTEM", content: txt }]);
+}
+
+// Mesaj/Fotoğraf Gönder
+async function sendMsg(content = null) {
+    const input = document.getElementById("message-input");
+    const val = content || input.value.trim();
+
+    if (!val || isCooldown) return;
+
+    isCooldown = true;
+    const { error } = await supabaseClient.from('messages').insert([{ user: currentUser, content: val }]);
+    
+    if (!error && !content) input.value = "";
+    setTimeout(() => isCooldown = false, 1000);
+}
+
+// --- 2. GİRİŞ İŞLEMİ ---
 document.getElementById("join-btn").onclick = async () => {
-    const inputField = document.getElementById("username-input");
+    const nick = document.getElementById("username-input").value.trim();
     const errorEl = document.getElementById("error-msg");
-    const nick = inputField.value.trim();
 
     if (nick.length < 2) {
         errorEl.innerText = "İsim çok kısa!";
         return;
     }
 
-    // Kullanıcı adını kontrol et
-    const { data: existingUser } = await supabaseClient
-        .from('active_users')
-        .select('username')
-        .ilike('username', nick)
-        .maybeSingle();
-
-    if (existingUser) {
-        errorEl.innerText = "Bu İsim Zaten Kullanımda";
+    // İsim kullanımda mı?
+    const { data: userExists } = await supabaseClient.from('active_users').select('username').ilike('username', nick).maybeSingle();
+    if (userExists) {
+        errorEl.innerText = "Bu isim zaten içeride biri tarafından kullanılıyor.";
         return;
     }
 
-    // Giriş yapmadan önce eski mesajları temizle
-    await cleanOldMessages();
-
-    // Kullanıcıyı aktif listeye ekle
-    const { error: insertError } = await supabaseClient
-        .from('active_users')
-        .insert([{ username: nick }]);
-
-    if (insertError) {
-        errorEl.innerText = "Giriş yapılamadı, tekrar dene.";
-        return;
-    }
-
+    // Veritabanına ekle
+    await autoClean();
+    await supabaseClient.from('active_users').insert([{ username: nick }]);
+    
     currentUser = nick;
     document.getElementById("login-screen").classList.remove("active");
     document.getElementById("chat-screen").classList.add("active");
     document.getElementById("display-username").innerText = currentUser;
 
-    // Giriş Mesajı
-    await sendSystemMessage(`${currentUser} Sunucuya Hoşgeldin!`);
-
-    loadMessages();
-    subscribeMessages();
+    await sendSys(`${currentUser} katıldı.`);
+    
+    loadMsgs();
+    listenMsgs();
 };
 
-// 2. MESAJLAŞMA SİSTEMİ
-async function sendSystemMessage(text) {
-    await supabaseClient.from('messages').insert([{ "user": "SİSTEM", "content": text }]);
-}
-
-async function sendMessage(customContent = null) {
-    const input = document.getElementById("message-input");
-    const val = customContent || input.value.trim();
-    if (!val || isCooldown) return;
-
-    isCooldown = true;
-    const { error } = await supabaseClient.from('messages').insert([{ "user": currentUser, "content": val }]);
-    
-    if (!error && !customContent) input.value = "";
-    setTimeout(() => { isCooldown = false; }, 1000);
-}
-
-// 3. AYRILMA KONTROLÜ (GÜNCELLENDİ)
-// Sekme kapanınca hem listeden siler hem mesaj atar
-window.addEventListener('beforeunload', () => {
-    if (currentUser) {
-        // navigator.sendBeacon burada Supabase ile zor olduğu için 
-        // direkt silme emri gönderiyoruz (Tarayıcı izin verdiği sürece)
-        supabaseClient.from('active_users').delete().eq('username', currentUser).then(() => {
-            sendSystemMessage(`${currentUser} Sunucudan Ayrıldı!`);
-        });
-    }
-});
-
-// 4. CTRL+V FOTOĞRAF
-document.getElementById("message-input").addEventListener("paste", function (e) {
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    for (let index in items) {
-        const item = items[index];
-        if (item.kind === 'file' && item.type.indexOf('image') !== -1) {
-            const reader = new FileReader();
-            reader.onload = (event) => sendMessage(event.target.result);
-            reader.readAsDataURL(item.getAsFile());
-        }
-    }
-});
-
-// 5. REALTIME DİNLEME
-function subscribeMessages() {
+// --- 3. REALTIME & LİSTELEME ---
+function listenMsgs() {
     supabaseClient
-        .channel('schema-db-changes')
-        .on('postgres_changes', { event: 'INSERT', table: 'messages' }, (payload) => {
-            renderMessage(payload.new);
-        })
+        .channel('any')
+        .on('postgres_changes', { event: 'INSERT', table: 'messages' }, payload => render(payload.new))
         .subscribe();
 }
 
-async function loadMessages() {
+async function loadMsgs() {
     const { data } = await supabaseClient.from('messages').select('*').order('created_at', { ascending: true }).limit(50);
     const area = document.getElementById("chat-messages");
-    if (!area) return;
     area.innerHTML = "";
-    if (data) data.forEach(msg => renderMessage(msg));
+    if (data) data.forEach(m => render(m));
 }
 
-function renderMessage(data) {
+function render(data) {
     const area = document.getElementById("chat-messages");
-    if (!area) return;
     const div = document.createElement("div");
-    const isSystem = data.user === "SİSTEM";
-    div.className = isSystem ? "msg-item system-msg" : "msg-item";
+    const isSys = data.user === "SİSTEM";
     
+    div.className = isSys ? "msg-item system-msg" : "msg-item";
     const time = new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    let contentHTML = data.content.startsWith("data:image") 
-        ? `<img src="${data.content}" class="chat-img" style="max-width:100%; border-radius:10px; border:1px solid var(--cyber-red-glow); display:block; margin-top:5px;">` 
+
+    let body = data.content.startsWith("data:image") 
+        ? `<img src="${data.content}" style="max-width:100%; border-radius:8px; margin-top:5px; display:block; border:1px solid var(--cyber-red-glow);">`
         : `<span class="m-text">${data.content}</span>`;
 
-    div.innerHTML = `<span class="m-user">${data.user} <small>${time}</small></span>${contentHTML}`;
+    div.innerHTML = `<span class="m-user">${data.user} <small>${time}</small></span>${body}`;
     area.appendChild(div);
     area.scrollTop = area.scrollHeight;
 }
 
-document.getElementById("message-input").onkeyup = (e) => { if(e.key === "Enter") sendMessage(); };
-document.getElementById("send-btn").onclick = () => sendMessage();
+// --- 4. EKSTRA ÖZELLİKLER ---
+
+// Fotoğraf Yapıştır
+document.getElementById("message-input").onpaste = (e) => {
+    const item = e.clipboardData.items[0];
+    if (item && item.type.includes('image')) {
+        const reader = new FileReader();
+        reader.onload = (ev) => sendMsg(ev.target.result);
+        reader.readAsDataURL(item.getAsFile());
+    }
+};
+
+// Çıkış Yapınca Sil (Kısıtlı çalışır ama en iyisi budur)
+window.onbeforeunload = () => {
+    if (currentUser) {
+        supabaseClient.from('active_users').delete().eq('username', currentUser);
+        sendSys(`${currentUser} ayrıldı.`);
+    }
+};
+
+// Enter ile gönder
+document.getElementById("message-input").onkeydown = (e) => { if(e.key === "Enter") sendMsg(); };
+document.getElementById("send-btn").onclick = () => sendMsg();

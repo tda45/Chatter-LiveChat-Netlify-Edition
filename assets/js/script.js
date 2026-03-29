@@ -45,7 +45,7 @@ document.getElementById("join-btn").onclick = async () => {
     subscribeMessages();
 };
 
-// 2. PRESENCE VE YAZIYOR KONTROLÜ
+// 2. PRESENCE SİSTEMİ (DÜZELTİLDİ)
 function setupPresence(username) {
     userChannel = supabaseClient.channel('online-users', {
         config: { presence: { key: username } }
@@ -56,9 +56,17 @@ function setupPresence(username) {
             const state = userChannel.presenceState();
             updateTypingStatus(state);
         })
-        .on('presence', { event: 'leave' }, async ({ key }) => {
-            await supabaseClient.from('active_users').delete().eq('username', key);
-            if (key !== "SİSTEM") await sendSystemMessage(`${key} Sunucudan Ayrıldı!`);
+        .on('presence', { event: 'join' }, ({ key }) => {
+            console.log("Katıldı:", key);
+        })
+        .on('presence', { event: 'leave' }, async ({ key, leftPresences }) => {
+            // KRİTİK DÜZELTME: Eğer ayrılan kişi gerçekten kanaldan çıktıysa (yazmayı bırakmak değil, çıkış yapmak)
+            // leftPresences kontrolü ile sadece gerçek ayrılmaları yakalıyoruz.
+            const isReallyGone = !userChannel.presenceState()[key];
+            if (isReallyGone) {
+                await supabaseClient.from('active_users').delete().eq('username', key);
+                await sendSystemMessage(`${key} Sunucudan Ayrıldı!`);
+            }
         })
         .subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
@@ -67,16 +75,17 @@ function setupPresence(username) {
         });
 }
 
-// "Yazıyor..." Yazısını Ekrana Basan Fonksiyon
+// YAZIYOR DURUMU GÜNCELLEME
 function updateTypingStatus(state) {
     const header = document.querySelector('.user-profile');
-    // Eski yazıyor yazısını temizle
     const oldStatus = document.querySelector('.typing-status');
     if (oldStatus) oldStatus.remove();
 
     Object.keys(state).forEach(user => {
-        // Eğer yazan kişi biz değilsek ve isTyping değeri true ise
-        if (user !== currentUser && state[user][0].isTyping) {
+        // Kullanıcı biz değilsek ve o kullanıcının herhangi bir oturumunda isTyping true ise
+        const userTyping = state[user].some(presence => presence.isTyping);
+        
+        if (user !== currentUser && userTyping) {
             const span = document.createElement('span');
             span.className = 'typing-status';
             span.innerText = `(${user} Yazıyor...)`;
@@ -85,21 +94,19 @@ function updateTypingStatus(state) {
     });
 }
 
-// Klavye Hareketlerini Dinle
+// KLAVYE DİNLEME
 document.getElementById("message-input").addEventListener("input", () => {
     if (!userChannel) return;
 
-    // "Yazıyor" bilgisini kanala gönder
     userChannel.track({ online_at: new Date().toISOString(), isTyping: true });
 
-    // 2 saniye boyunca bir şey yazmazsa "Yazıyor" bilgisini kapat
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
         userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
     }, 2000);
 });
 
-// 3. MESAJLAŞMA SİSTEMİ (Değişmedi)
+// 3. MESAJLAŞMA
 async function sendSystemMessage(text) {
     await supabaseClient.from('messages').insert([{ "user": "SİSTEM", "content": text }]);
 }
@@ -111,13 +118,16 @@ async function sendMessage(customContent = null) {
 
     isCooldown = true;
     await supabaseClient.from('messages').insert([{ "user": currentUser, "content": val }]);
+    
     if (!customContent) input.value = "";
-    // Mesaj gidince yazıyor bilgisini hemen kapat
+    
+    // Mesaj gidince yazıyor bilgisini hemen durdur
     userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
+    
     setTimeout(() => { isCooldown = false; }, 1000);
 }
 
-// CTRL+V FOTOĞRAF (Değişmedi)
+// CTRL+V FOTOĞRAF
 document.getElementById("message-input").addEventListener("paste", function (e) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     for (let index in items) {
@@ -130,7 +140,7 @@ document.getElementById("message-input").addEventListener("paste", function (e) 
     }
 });
 
-// 4. DİNLEME VE RENDER (Değişmedi)
+// 4. DİNLEME VE RENDER
 function subscribeMessages() {
     supabaseClient.channel('public:messages').on('postgres_changes', { event: 'INSERT', table: 'messages' }, p => renderMessage(p.new)).subscribe();
 }
@@ -144,6 +154,7 @@ async function loadMessages() {
 
 function renderMessage(data) {
     const area = document.getElementById("chat-messages");
+    if (!area) return;
     const div = document.createElement("div");
     div.className = data.user === "SİSTEM" ? "msg-item system-msg" : "msg-item";
     const time = new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

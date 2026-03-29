@@ -7,15 +7,14 @@ let currentUser = "";
 let isCooldown = false;
 let heartbeatInterval;
 
-// --- 1. FONKSİYONLAR ---
+// --- 1. SİSTEM FONKSİYONLARI ---
 
-// 24 Saatlik Temizlik
 async function autoClean() {
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     await supabaseClient.from('messages').delete().lt('created_at', yesterday);
 }
 
-// Kalp Atışı (Ben buradayım sinyali)
+// Kalp Atışı: Her 2 saniyede bir "buradayım" der.
 function startHeartbeat() {
     heartbeatInterval = setInterval(async () => {
         if (currentUser) {
@@ -24,7 +23,7 @@ function startHeartbeat() {
                 .update({ last_seen: new Date().toISOString() })
                 .eq('username', currentUser);
         }
-    }, 5000); // her 5 saniyede bir güncelle
+    }, 2000); 
 }
 
 async function sendSys(txt) {
@@ -41,7 +40,7 @@ async function sendMsg(content = null) {
     setTimeout(() => isCooldown = false, 1000);
 }
 
-// --- 2. GİRİŞ İŞLEMİ (AKILLI KONTROL) ---
+// --- 2. GİRİŞ İŞLEMİ (ANLIK KONTROL) ---
 document.getElementById("join-btn").onclick = async () => {
     const nick = document.getElementById("username-input").value.trim();
     const errorEl = document.getElementById("error-msg");
@@ -51,7 +50,7 @@ document.getElementById("join-btn").onclick = async () => {
         return;
     }
 
-    // İsim Kontrolü + Hayalet Kullanıcı Temizliği
+    // İsmi ve Son Görülme Zamanını Kontrol Et
     const { data: userData } = await supabaseClient
         .from('active_users')
         .select('username, last_seen')
@@ -61,36 +60,45 @@ document.getElementById("join-btn").onclick = async () => {
     if (userData) {
         const lastSeen = new Date(userData.last_seen);
         const now = new Date();
-        const diff = (now - lastSeen) / 1000; // saniye cinsinden fark
+        const diff = (now - lastSeen) / 1000; // Saniye farkı
 
-        if (diff < 15) { // Eğer son 15 saniye içinde aktifse, gerçekten içeridedir.
-            errorEl.innerText = "Bu isim şu an aktif bir kullanıcı tarafından kullanılıyor.";
+        // Eğer son 5 saniyedir sinyal yoksa, kullanıcı düşmüştür.
+        if (diff < 5) { 
+            errorEl.innerText = "Bu isim şu an aktif. Lütfen 5 saniye sonra tekrar dene veya başka isim seç.";
             return;
         } else {
-            // Eğer 15 saniyedir ses yoksa, eski kaydı sil ki yeni giriş yapılsın
+            // "Hayalet" kullanıcıyı temizle
             await supabaseClient.from('active_users').delete().eq('username', nick);
         }
     }
 
+    // Temizlik ve Giriş
     await autoClean();
-    await supabaseClient.from('active_users').insert([{ username: nick, last_seen: new Date().toISOString() }]);
+    const { error: loginError } = await supabaseClient
+        .from('active_users')
+        .insert([{ username: nick, last_seen: new Date().toISOString() }]);
     
+    if (loginError) {
+        errorEl.innerText = "Giriş hatası, lütfen tekrar deneyin.";
+        return;
+    }
+
     currentUser = nick;
     document.getElementById("login-screen").classList.remove("active");
     document.getElementById("chat-screen").classList.add("active");
     document.getElementById("display-username").innerText = currentUser;
 
-    await sendSys(`${currentUser} katıldı.`);
+    await sendSys(`${currentUser} sunucuya katıldı.`);
     
-    startHeartbeat(); // Kalp atışını başlat
+    startHeartbeat(); 
     loadMsgs();
     listenMsgs();
 };
 
-// --- 3. REALTIME & LİSTELEME ---
+// --- 3. REALTIME & RENDER ---
 function listenMsgs() {
     supabaseClient
-        .channel('any')
+        .channel('public:messages')
         .on('postgres_changes', { event: 'INSERT', table: 'messages' }, payload => render(payload.new))
         .subscribe();
 }
@@ -109,7 +117,7 @@ function render(data) {
     const time = new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     let body = data.content.startsWith("data:image") 
-        ? `<img src="${data.content}" style="max-width:100%; border-radius:8px; display:block; border:1px solid var(--cyber-red-glow);">`
+        ? `<img src="${data.content}" class="chat-img" style="max-width:100%; border-radius:8px; border:1px solid var(--cyber-red-glow); display:block;">`
         : `<span class="m-text">${data.content}</span>`;
 
     div.innerHTML = `<span class="m-user">${data.user} <small>${time}</small></span>${body}`;
@@ -117,17 +125,21 @@ function render(data) {
     area.scrollTop = area.scrollHeight;
 }
 
-// --- 4. EVENTLER ---
+// --- 4. EKSTRALAR ---
+
+// CTRL+V Fotoğraf
 document.getElementById("message-input").onpaste = (e) => {
-    const item = e.clipboardData.items[0];
-    if (item && item.type.includes('image')) {
-        const reader = new FileReader();
-        reader.onload = (ev) => sendMsg(ev.target.result);
-        reader.readAsDataURL(item.getAsFile());
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+            const reader = new FileReader();
+            reader.onload = (ev) => sendMsg(ev.target.result);
+            reader.readAsDataURL(items[i].getAsFile());
+        }
     }
 };
 
-// Çıkışta temizlik (Bonus)
+// Sayfa kapanırken hızlı silme denemesi
 window.onbeforeunload = () => {
     if (currentUser) {
         supabaseClient.from('active_users').delete().eq('username', currentUser);

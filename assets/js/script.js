@@ -5,6 +5,7 @@ const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
 let currentUser = "";
 let isCooldown = false;
+let userChannel; // Kullanıcı durumunu takip edecek kanal
 
 // 1. GİRİŞ VE HOŞGELDİN MESAJI
 document.getElementById("join-btn").onclick = async () => {
@@ -17,7 +18,7 @@ document.getElementById("join-btn").onclick = async () => {
         return;
     }
 
-    // Kullanıcı Adı Kontrolü
+    // Kullanıcı Adı Kontrolü (Presence üzerinden kontrol daha sağlıklıdır)
     const { data: existingUser } = await supabaseClient
         .from('active_users')
         .select('username')
@@ -38,11 +39,42 @@ document.getElementById("join-btn").onclick = async () => {
     document.getElementById("display-username").innerText = currentUser;
 
     // OTOMATİK HOŞGELDİN MESAJI (SİSTEM)
-    await sendSystemMessage(`${currentUser} Sunucuya Hoşgeldin Burda Lütfen Küfür Etmessen Çok Mutlu Edersiniz İyi Yazışmalar!`);
+    await sendSystemMessage(`${currentUser} Sunucuya Hoşgeldin!`);
 
+    // TAKİP SİSTEMİNİ BAŞLAT
+    setupPresence(nick);
     loadMessages();
     subscribeMessages();
 };
+
+// --- KRİTİK GÜNCELLEME: PRESENCE (VARLIK) TAKİBİ ---
+function setupPresence(username) {
+    userChannel = supabaseClient.channel('online-users', {
+        config: { presence: { key: username } }
+    });
+
+    userChannel
+        .on('presence', { event: 'sync' }, () => {
+            // Senkronizasyon gerekirse buraya eklenebilir
+        })
+        .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+            console.log('Katıldı:', key);
+        })
+        .on('presence', { event: 'leave' }, async ({ key, leftPresences }) => {
+            // BİRİ ÇIKTIĞINDA: Eğer çıkan kişi bizim ismimizse veya bir başkasıysa veritabanından siliyoruz
+            console.log('Ayrıldı:', key);
+            await supabaseClient.from('active_users').delete().eq('username', key);
+            if (key !== "SİSTEM") {
+                await sendSystemMessage(`${key} Sunucudan Ayrıldı!`);
+            }
+        })
+        .subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                // Kanala başarıyla girince "ben buradayım" bilgisini gönder
+                await userChannel.track({ online_at: new Date().toISOString() });
+            }
+        });
+}
 
 // 2. SİSTEM MESAJI GÖNDERİCİ
 async function sendSystemMessage(text) {
@@ -60,7 +92,6 @@ async function sendMessage() {
     if (!val) return;
 
     if (isCooldown) {
-        // Spam Uyarısını Göster
         spamOverlay.classList.add("show");
         setTimeout(() => spamOverlay.classList.remove("show"), 1500);
         return;
@@ -72,17 +103,14 @@ async function sendMessage() {
         .insert([{ "user": currentUser, "content": val }]);
     
     if (!error) input.value = "";
-
-    // 1 Saniye Bekleme Süresi
     setTimeout(() => { isCooldown = false; }, 1000);
 }
 
-// 4. AYRILMA BİLDİRİMİ (Sekme Kapanınca)
-window.addEventListener('beforeunload', async () => {
-    if (currentUser) {
-        // Bu işlem hızlı olmalı, navigator.sendBeacon alternatifi ama Supabase insert de genellikle yetişir
-        await sendSystemMessage(`${currentUser} Sunucudan Ayrıldı!`);
-        await supabaseClient.from('active_users').delete().ilike('username', currentUser);
+// 4. AYRILMA BİLDİRİMİ (Manuel Çıkış Denemesi)
+window.addEventListener('beforeunload', () => {
+    if (currentUser && userChannel) {
+        // Kanalı kapatmak Presence 'leave' olayını tetikler
+        userChannel.unsubscribe();
     }
 });
 
@@ -106,8 +134,6 @@ async function loadMessages() {
 function renderMessage(data) {
     const area = document.getElementById("chat-messages");
     const div = document.createElement("div");
-    
-    // Sistem mesajı ise farklı stil ver
     const isSystem = data.user === "SİSTEM";
     div.className = isSystem ? "msg-item system-msg" : "msg-item";
     

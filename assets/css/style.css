@@ -11,12 +11,10 @@
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* --- GENEL AYARLAR & SCROLLBAR --- */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    /* Cutive Mono Uygulandı */
     font-family: 'Cutive Mono', monospace;
 }
 
@@ -33,19 +31,14 @@ body {
     overflow: hidden;
 }
 
-::-webkit-scrollbar {
-    width: 5px;
-}
-::-webkit-scrollbar-track {
-    background: #0a0a0a;
-}
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: #0a0a0a; }
 ::-webkit-scrollbar-thumb {
     background: var(--cyber-red);
     border-radius: 10px;
     box-shadow: 0 0 10px var(--cyber-red-glow);
 }
 
-/* --- EKRAN GEÇİŞLERİ --- */
 #login-screen, #chat-screen {
     display: none;
     width: 100%;
@@ -67,7 +60,6 @@ body {
     to { opacity: 1; transform: scale(1); }
 }
 
-/* --- GLASSMORPHISM KART YAPISI --- */
 .glass-card {
     background: var(--glass-bg);
     backdrop-filter: blur(25px);
@@ -78,7 +70,6 @@ body {
     overflow: hidden;
 }
 
-/* --- GİRİŞ EKRANI (LOGIN) --- */
 .login-box {
     width: 420px;
     padding: 50px;
@@ -87,7 +78,7 @@ body {
 }
 
 .neon-text {
-    font-size: 2.8rem; /* Font yapısına göre hafif küçültüldü */
+    font-size: 2.8rem;
     font-weight: 900;
     color: var(--cyber-red);
     text-shadow: 0 0 20px var(--cyber-red-glow);
@@ -103,11 +94,7 @@ body {
     margin-bottom: 35px;
 }
 
-.input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
+.input-group { display: flex; flex-direction: column; gap: 15px; }
 
 input {
     background: rgba(255, 255, 255, 0.05);
@@ -154,7 +141,6 @@ button:hover {
     height: 1rem;
 }
 
-/* --- CHAT ARAYÜZÜ --- */
 .chat-container {
     width: 95%;
     max-width: 1100px;
@@ -172,12 +158,7 @@ header {
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.user-profile {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
+.user-profile { display: flex; align-items: center; gap: 15px; }
 .online-indicator {
     width: 12px;
     height: 12px;
@@ -186,13 +167,8 @@ header {
     box-shadow: 0 0 12px #00ff88;
 }
 
-.brand {
-    font-weight: bold;
-    letter-spacing: 2px;
-    color: var(--cyber-red);
-}
+.brand { font-weight: bold; letter-spacing: 2px; color: var(--cyber-red); }
 
-/* --- MESAJ ALANI --- */
 .messages-area {
     flex: 1;
     overflow-y: auto;
@@ -209,6 +185,7 @@ header {
     border-radius: 15px;
     border-left: 4px solid var(--cyber-red);
     animation: msgIn 0.3s ease-out forwards;
+    align-self: flex-start;
 }
 
 @keyframes msgIn {
@@ -224,13 +201,8 @@ header {
     margin-bottom: 5px;
 }
 
-.m-text {
-    line-height: 1.6;
-    word-wrap: break-word;
-    font-size: 1rem;
-}
+.m-text { line-height: 1.6; word-wrap: break-word; font-size: 1rem; }
 
-/* --- SİSTEM MESAJI STİLİ --- */
 .system-msg {
     align-self: center !important;
     background: rgba(255, 255, 255, 0.05) !important;
@@ -245,7 +217,6 @@ header {
     border-radius: 0 !important;
 }
 
-/* --- MESAJ YAZMA ALANI --- */
 .input-area {
     padding: 25px 35px;
     display: flex;
@@ -253,17 +224,9 @@ header {
     background: rgba(0, 0, 0, 0.4);
 }
 
-.input-area input {
-    flex: 1;
-    background: rgba(0, 0, 0, 0.3);
-}
+.input-area input { flex: 1; background: rgba(0, 0, 0, 0.3); }
+.input-area button { width: 70px; font-size: 1.2rem; }
 
-.input-area button {
-    width: 70px;
-    font-size: 1.2rem;
-}
-
-/* --- SPAM OVERLAY --- */
 #spam-overlay {
     position: fixed;
     top: 50%;
@@ -284,22 +247,11 @@ header {
     border: 2px solid white;
 }
 
-#spam-overlay.show {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-}
+#spam-overlay.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
-.typing-status {
-    font-size: 0.8rem;
-    color: var(--text-dim);
-    font-style: italic;
-    margin-left: 10px;
-    opacity: 0.7;
-    animation: blink 1.5s infinite;
-}
-
-@keyframes blink {
-    0% { opacity: 0.3; }
-    50% { opacity: 0.7; }
-    100% { opacity: 0.3; }
+.chat-img {
+    max-width: 100%;
+    border-radius: 10px;
+    margin-top: 10px;
+    border: 1px solid var(--glass-border);
 }

@@ -82,6 +82,8 @@ async function sendMessage(customContent = null) {
     }
 
     isCooldown = true;
+    
+    // Veritabanına gönderiyoruz
     const { error } = await supabaseClient
         .from('messages')
         .insert([{ "user": currentUser, "content": val }]);
@@ -90,7 +92,7 @@ async function sendMessage(customContent = null) {
     setTimeout(() => { isCooldown = false; }, 1000);
 }
 
-// --- YENİ: CTRL+V İLE FOTOĞRAF YAPIŞTIRMA ---
+// CTRL+V İLE FOTOĞRAF YAPIŞTIRMA
 document.getElementById("message-input").addEventListener("paste", function (e) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     
@@ -102,8 +104,7 @@ document.getElementById("message-input").addEventListener("paste", function (e) 
             
             reader.onload = function (event) {
                 const base64String = event.target.result;
-                // Base64 verisini doğrudan mesaj olarak gönderiyoruz
-                sendMessage(base64String);
+                sendMessage(base64String); // Base64 olarak veritabanına basar
             };
             
             reader.readAsDataURL(blob);
@@ -111,12 +112,12 @@ document.getElementById("message-input").addEventListener("paste", function (e) 
     }
 });
 
-// 4. DİNLEME VE RENDER
+// 4. DİNLEME VE RENDER (KRİTİK KISIM)
 function subscribeMessages() {
     supabaseClient
         .channel('public:messages')
         .on('postgres_changes', { event: 'INSERT', table: 'messages' }, payload => {
-            renderMessage(payload.new);
+            renderMessage(payload.new); // Yeni gelen mesaj her kullanıcıda burada işlenir
         })
         .subscribe();
 }
@@ -130,24 +131,27 @@ async function loadMessages() {
 
 function renderMessage(data) {
     const area = document.getElementById("chat-messages");
+    if (!area) return;
+
     const div = document.createElement("div");
     const isSystem = data.user === "SİSTEM";
     div.className = isSystem ? "msg-item system-msg" : "msg-item";
     
     const time = new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // İçerik fotoğraf mı yoksa metin mi kontrol et (Base64 kontrolü)
-    let contentHTML = "";
+    // FOTOĞRAF KONTROLÜ: Eğer içerik "data:image" ile başlıyorsa <img> yap, değilse metin yap
+    let finalContent = "";
     if (data.content.startsWith("data:image")) {
-        contentHTML = `<img src="${data.content}" class="chat-img" style="max-width: 100%; border-radius: 10px; margin-top: 5px; border: 1px solid var(--cyber-red-glow);">`;
+        finalContent = `<img src="${data.content}" class="chat-img" style="max-width: 100%; border-radius: 10px; margin-top: 5px; border: 1px solid var(--cyber-red-glow); display: block;">`;
     } else {
-        contentHTML = `<span class="m-text">${data.content}</span>`;
+        finalContent = `<span class="m-text">${data.content}</span>`;
     }
 
     div.innerHTML = `
         <span class="m-user">${data.user} <small>${time}</small></span>
-        ${contentHTML}
+        ${finalContent}
     `;
+    
     area.appendChild(div);
     area.scrollTop = area.scrollHeight;
 }

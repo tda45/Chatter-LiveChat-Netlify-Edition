@@ -5,8 +5,6 @@ const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
 let currentUser = "";
 let isCooldown = false;
-let userChannel;
-let typingTimeout;
 
 // 1. TEMİZLİK VE GİRİŞ
 async function cleanOldMessages() {
@@ -24,84 +22,44 @@ document.getElementById("join-btn").onclick = async () => {
         return;
     }
 
-    const { data: existingUser } = await supabaseClient.from('active_users').select('username').ilike('username', nick).maybeSingle();
+    // Kullanıcı adını kontrol et
+    const { data: existingUser } = await supabaseClient
+        .from('active_users')
+        .select('username')
+        .ilike('username', nick)
+        .maybeSingle();
+
     if (existingUser) {
         errorEl.innerText = "Bu İsim Zaten Kullanımda";
         return;
     }
 
+    // Giriş yapmadan önce eski mesajları temizle
     await cleanOldMessages();
-    await supabaseClient.from('active_users').insert([{ username: nick }]);
+
+    // Kullanıcıyı aktif listeye ekle
+    const { error: insertError } = await supabaseClient
+        .from('active_users')
+        .insert([{ username: nick }]);
+
+    if (insertError) {
+        errorEl.innerText = "Giriş yapılamadı, tekrar dene.";
+        return;
+    }
 
     currentUser = nick;
     document.getElementById("login-screen").classList.remove("active");
     document.getElementById("chat-screen").classList.add("active");
     document.getElementById("display-username").innerText = currentUser;
 
+    // Giriş Mesajı
     await sendSystemMessage(`${currentUser} Sunucuya Hoşgeldin!`);
 
-    setupPresence(nick);
     loadMessages();
     subscribeMessages();
 };
 
-// 2. PRESENCE SİSTEMİ (BOZUKLUKLAR GİDERİLDİ)
-function setupPresence(username) {
-    userChannel = supabaseClient.channel('online-users', {
-        config: { presence: { key: username } }
-    });
-
-    userChannel
-        .on('presence', { event: 'sync' }, () => {
-            const state = userChannel.presenceState();
-            updateTypingStatus(state);
-        })
-        .on('presence', { event: 'leave' }, async ({ key, leftPresences }) => {
-            // Sadece gerçekten kanaldan kopanlar için ayrıldı mesajı gönder
-            const currentState = userChannel.presenceState();
-            if (!currentState[key]) {
-                await supabaseClient.from('active_users').delete().eq('username', key);
-                await sendSystemMessage(`${key} Sunucudan Ayrıldı!`);
-            }
-        })
-        .subscribe(async (status) => {
-            if (status === 'SUBSCRIBED') {
-                await userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
-            }
-        });
-}
-
-function updateTypingStatus(state) {
-    const header = document.querySelector('.user-profile');
-    const oldStatus = document.querySelector('.typing-status');
-    if (oldStatus) oldStatus.remove();
-
-    Object.keys(state).forEach(user => {
-        if (user !== currentUser) {
-            // Kullanıcının herhangi bir aktif session'ında isTyping true ise göster
-            const isTypingNow = state[user].some(p => p.isTyping === true);
-            if (isTypingNow) {
-                const span = document.createElement('span');
-                span.className = 'typing-status';
-                span.innerText = `(${user} Yazıyor...)`;
-                header.appendChild(span);
-            }
-        }
-    });
-}
-
-// YAZIYOR TETİKLEYİCİ
-document.getElementById("message-input").addEventListener("input", () => {
-    if (!userChannel) return;
-    userChannel.track({ online_at: new Date().toISOString(), isTyping: true });
-
-    clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => {
-        if(userChannel) userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
-    }, 2500); // 2.5 saniye bekleme
-});
-
-// 3. MESAJLAŞMA (GÖRSEL VE YAZI)
+// 2. MESAJLAŞMA SİSTEMİ
 async function sendSystemMessage(text) {
     await supabaseClient.from('messages').insert([{ "user": "SİSTEM", "content": text }]);
 }
@@ -112,18 +70,23 @@ async function sendMessage(customContent = null) {
     if (!val || isCooldown) return;
 
     isCooldown = true;
-
-    // MESAJ GİTMEDEN ÖNCE: Yazıyor bilgisini hemen KAPAT (Herkesin ekranında anında silinsin)
-    if(userChannel) {
-        await userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
-    }
-
     const { error } = await supabaseClient.from('messages').insert([{ "user": currentUser, "content": val }]);
     
     if (!error && !customContent) input.value = "";
-    
     setTimeout(() => { isCooldown = false; }, 1000);
 }
+
+// 3. AYRILMA KONTROLÜ (GÜNCELLENDİ)
+// Sekme kapanınca hem listeden siler hem mesaj atar
+window.addEventListener('beforeunload', () => {
+    if (currentUser) {
+        // navigator.sendBeacon burada Supabase ile zor olduğu için 
+        // direkt silme emri gönderiyoruz (Tarayıcı izin verdiği sürece)
+        supabaseClient.from('active_users').delete().eq('username', currentUser).then(() => {
+            sendSystemMessage(`${currentUser} Sunucudan Ayrıldı!`);
+        });
+    }
+});
 
 // 4. CTRL+V FOTOĞRAF
 document.getElementById("message-input").addEventListener("paste", function (e) {
@@ -138,9 +101,14 @@ document.getElementById("message-input").addEventListener("paste", function (e) 
     }
 });
 
-// 5. DİNLEME VE RENDER
+// 5. REALTIME DİNLEME
 function subscribeMessages() {
-    supabaseClient.channel('public:messages').on('postgres_changes', { event: 'INSERT', table: 'messages' }, p => renderMessage(p.new)).subscribe();
+    supabaseClient
+        .channel('schema-db-changes')
+        .on('postgres_changes', { event: 'INSERT', table: 'messages' }, (payload) => {
+            renderMessage(payload.new);
+        })
+        .subscribe();
 }
 
 async function loadMessages() {

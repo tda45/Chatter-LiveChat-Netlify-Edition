@@ -8,7 +8,7 @@ let isCooldown = false;
 let userChannel;
 let typingTimeout;
 
-// 1. GİRİŞ VE TEMİZLİK
+// 1. TEMİZLİK VE GİRİŞ
 async function cleanOldMessages() {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     await supabaseClient.from('messages').delete().lt('created_at', twentyFourHoursAgo);
@@ -45,7 +45,7 @@ document.getElementById("join-btn").onclick = async () => {
     subscribeMessages();
 };
 
-// 2. PRESENCE SİSTEMİ (DÜZELTİLDİ)
+// 2. PRESENCE SİSTEMİ (BOZUKLUKLAR GİDERİLDİ)
 function setupPresence(username) {
     userChannel = supabaseClient.channel('online-users', {
         config: { presence: { key: username } }
@@ -56,14 +56,10 @@ function setupPresence(username) {
             const state = userChannel.presenceState();
             updateTypingStatus(state);
         })
-        .on('presence', { event: 'join' }, ({ key }) => {
-            console.log("Katıldı:", key);
-        })
         .on('presence', { event: 'leave' }, async ({ key, leftPresences }) => {
-            // KRİTİK DÜZELTME: Eğer ayrılan kişi gerçekten kanaldan çıktıysa (yazmayı bırakmak değil, çıkış yapmak)
-            // leftPresences kontrolü ile sadece gerçek ayrılmaları yakalıyoruz.
-            const isReallyGone = !userChannel.presenceState()[key];
-            if (isReallyGone) {
+            // Sadece gerçekten kanaldan kopanlar için ayrıldı mesajı gönder
+            const currentState = userChannel.presenceState();
+            if (!currentState[key]) {
                 await supabaseClient.from('active_users').delete().eq('username', key);
                 await sendSystemMessage(`${key} Sunucudan Ayrıldı!`);
             }
@@ -75,38 +71,37 @@ function setupPresence(username) {
         });
 }
 
-// YAZIYOR DURUMU GÜNCELLEME
 function updateTypingStatus(state) {
     const header = document.querySelector('.user-profile');
     const oldStatus = document.querySelector('.typing-status');
     if (oldStatus) oldStatus.remove();
 
     Object.keys(state).forEach(user => {
-        // Kullanıcı biz değilsek ve o kullanıcının herhangi bir oturumunda isTyping true ise
-        const userTyping = state[user].some(presence => presence.isTyping);
-        
-        if (user !== currentUser && userTyping) {
-            const span = document.createElement('span');
-            span.className = 'typing-status';
-            span.innerText = `(${user} Yazıyor...)`;
-            header.appendChild(span);
+        if (user !== currentUser) {
+            // Kullanıcının herhangi bir aktif session'ında isTyping true ise göster
+            const isTypingNow = state[user].some(p => p.isTyping === true);
+            if (isTypingNow) {
+                const span = document.createElement('span');
+                span.className = 'typing-status';
+                span.innerText = `(${user} Yazıyor...)`;
+                header.appendChild(span);
+            }
         }
     });
 }
 
-// KLAVYE DİNLEME
+// YAZIYOR TETİKLEYİCİ
 document.getElementById("message-input").addEventListener("input", () => {
     if (!userChannel) return;
-
     userChannel.track({ online_at: new Date().toISOString(), isTyping: true });
 
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
-        userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
-    }, 2000);
+        if(userChannel) userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
+    }, 2500); // 2.5 saniye bekleme
 });
 
-// 3. MESAJLAŞMA
+// 3. MESAJLAŞMA (GÖRSEL VE YAZI)
 async function sendSystemMessage(text) {
     await supabaseClient.from('messages').insert([{ "user": "SİSTEM", "content": text }]);
 }
@@ -117,17 +112,20 @@ async function sendMessage(customContent = null) {
     if (!val || isCooldown) return;
 
     isCooldown = true;
-    await supabaseClient.from('messages').insert([{ "user": currentUser, "content": val }]);
+
+    // MESAJ GİTMEDEN ÖNCE: Yazıyor bilgisini hemen KAPAT (Herkesin ekranında anında silinsin)
+    if(userChannel) {
+        await userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
+    }
+
+    const { error } = await supabaseClient.from('messages').insert([{ "user": currentUser, "content": val }]);
     
-    if (!customContent) input.value = "";
-    
-    // Mesaj gidince yazıyor bilgisini hemen durdur
-    userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
+    if (!error && !customContent) input.value = "";
     
     setTimeout(() => { isCooldown = false; }, 1000);
 }
 
-// CTRL+V FOTOĞRAF
+// 4. CTRL+V FOTOĞRAF
 document.getElementById("message-input").addEventListener("paste", function (e) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     for (let index in items) {
@@ -140,7 +138,7 @@ document.getElementById("message-input").addEventListener("paste", function (e) 
     }
 });
 
-// 4. DİNLEME VE RENDER
+// 5. DİNLEME VE RENDER
 function subscribeMessages() {
     supabaseClient.channel('public:messages').on('postgres_changes', { event: 'INSERT', table: 'messages' }, p => renderMessage(p.new)).subscribe();
 }
@@ -148,6 +146,7 @@ function subscribeMessages() {
 async function loadMessages() {
     const { data } = await supabaseClient.from('messages').select('*').order('created_at', { ascending: true }).limit(50);
     const area = document.getElementById("chat-messages");
+    if (!area) return;
     area.innerHTML = "";
     if (data) data.forEach(msg => renderMessage(msg));
 }
@@ -156,11 +155,13 @@ function renderMessage(data) {
     const area = document.getElementById("chat-messages");
     if (!area) return;
     const div = document.createElement("div");
-    div.className = data.user === "SİSTEM" ? "msg-item system-msg" : "msg-item";
+    const isSystem = data.user === "SİSTEM";
+    div.className = isSystem ? "msg-item system-msg" : "msg-item";
+    
     const time = new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
     let contentHTML = data.content.startsWith("data:image") 
-        ? `<img src="${data.content}" class="chat-img" style="max-width:100%; border-radius:10px; border:1px solid var(--cyber-red-glow); display:block;">` 
+        ? `<img src="${data.content}" class="chat-img" style="max-width:100%; border-radius:10px; border:1px solid var(--cyber-red-glow); display:block; margin-top:5px;">` 
         : `<span class="m-text">${data.content}</span>`;
 
     div.innerHTML = `<span class="m-user">${data.user} <small>${time}</small></span>${contentHTML}`;

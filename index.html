@@ -3,19 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatter LiveChat | Netlify</title>
+    <title>Chatter | Premium</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+
+    <div id="spam-overlay">SPAM MESAJ ATAMAZSIN!</div>
 
     <section id="login-screen" class="active">
         <div class="glass-card login-box">
             <h1 class="neon-text">CHATTER</h1>
             <p class="subtitle">NETLIFY EDITION</p>
             <div class="input-group">
-                <input type="text" id="username-input" placeholder="Bir ad seçin..." maxlength="15">
-                <button id="join-btn">GİRİŞ YAP</button>
+                <input type="text" id="username-input" placeholder="Nick Seçin..." maxlength="15">
+                <button id="join-btn">GİRİŞ</button>
             </div>
             <p id="error-msg" class="error-msg"></p>
         </div>

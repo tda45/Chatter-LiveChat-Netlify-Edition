@@ -1,4 +1,5 @@
-/* --- CHATTER PREMIUM CYBER RED THEME --- */
+/* --- CHATTER LIVECHAT: NETLIFY EDITION - FULL PREMIUM CSS --- */
+
 :root {
     --bg-dark: #050505;
     --cyber-red: #ff003c;
@@ -10,9 +11,29 @@
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Scrollbar Özelleştirme */
+/* --- GENEL AYARLAR & SCROLLBAR --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background: var(--bg-dark);
+    background-image: 
+        radial-gradient(circle at 10% 20%, #1a0505 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, #110202 0%, transparent 40%);
+    color: var(--text-main);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
 ::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
 }
 ::-webkit-scrollbar-track {
     background: #0a0a0a;
@@ -23,27 +44,7 @@
     box-shadow: 0 0 10px var(--cyber-red-glow);
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-}
-
-body {
-    background: var(--bg-dark);
-    background-image: 
-        radial-gradient(circle at 20% 30%, #1a0505 0%, transparent 40%),
-        radial-gradient(circle at 80% 70%, #110202 0%, transparent 40%);
-    color: var(--text-main);
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    overflow: hidden;
-}
-
-/* Giriş ve Chat Panel Geçişleri */
+/* --- EKRAN GEÇİŞLERİ --- */
 #login-screen, #chat-screen {
     display: none;
     width: 100%;
@@ -52,52 +53,55 @@ body {
     align-items: center;
     position: absolute;
     opacity: 0;
-    transition: opacity 0.5s ease;
 }
 
 #login-screen.active, #chat-screen.active {
     display: flex;
     opacity: 1;
+    animation: screenFade 0.5s ease forwards;
 }
 
-/* Glassmorphism Kart Yapısı */
+@keyframes screenFade {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* --- GLASSMORPHISM KART YAPISI --- */
 .glass-card {
     background: var(--glass-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
     border: 1px solid var(--glass-border);
     border-radius: 20px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-    position: relative;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
     overflow: hidden;
 }
 
-/* GİRİŞ KUTUSU */
+/* --- GİRİŞ EKRANI (LOGIN) --- */
 .login-box {
-    width: 400px;
-    padding: 40px;
+    width: 420px;
+    padding: 50px;
     text-align: center;
-    border-top: 2px solid var(--cyber-red);
+    border-top: 3px solid var(--cyber-red);
 }
 
 .neon-text {
     font-size: 3.5rem;
     font-weight: 900;
     color: var(--cyber-red);
-    text-shadow: 0 0 15px var(--cyber-red-glow);
-    letter-spacing: 5px;
+    text-shadow: 0 0 20px var(--cyber-red-glow);
+    letter-spacing: 6px;
     margin-bottom: 5px;
 }
 
 .subtitle {
     color: var(--text-dim);
-    font-size: 0.8rem;
-    letter-spacing: 4px;
+    font-size: 0.75rem;
+    letter-spacing: 5px;
     text-transform: uppercase;
-    margin-bottom: 30px;
+    margin-bottom: 35px;
 }
 
-/* INPUT VE BUTONLAR */
 .input-group {
     display: flex;
     flex-direction: column;
@@ -105,30 +109,28 @@ body {
 }
 
 input {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 15px 20px;
+    padding: 16px 20px;
     border-radius: 12px;
     color: #fff;
-    font-size: 1rem;
     outline: none;
     transition: var(--transition);
 }
 
 input:focus {
     border-color: var(--cyber-red);
-    background: rgba(255, 0, 60, 0.05);
-    box-shadow: 0 0 15px rgba(255, 0, 60, 0.1);
+    background: rgba(255, 0, 60, 0.08);
+    box-shadow: 0 0 15px rgba(255, 0, 60, 0.2);
 }
 
 button {
     background: var(--cyber-red);
     color: white;
-    padding: 15px;
+    padding: 16px;
     border: none;
     border-radius: 12px;
     font-weight: bold;
-    font-size: 1rem;
     cursor: pointer;
     text-transform: uppercase;
     letter-spacing: 2px;
@@ -137,23 +139,30 @@ button {
 
 button:hover {
     filter: brightness(1.2);
+    box-shadow: 0 0 25px var(--cyber-red-glow);
     transform: translateY(-2px);
-    box-shadow: 0 5px 20px var(--cyber-red-glow);
 }
 
-/* CHAT ARAYÜZÜ */
+.error-msg {
+    color: var(--cyber-red);
+    margin-top: 15px;
+    font-weight: bold;
+    font-size: 0.85rem;
+    height: 1rem;
+}
+
+/* --- CHAT ARAYÜZÜ --- */
 .chat-container {
-    width: 90%;
-    max-width: 1000px;
+    width: 95%;
+    max-width: 1100px;
     height: 85vh;
     display: flex;
     flex-direction: column;
-    border: 1px solid rgba(255, 0, 60, 0.1);
 }
 
 header {
     padding: 20px 30px;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.3);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -163,88 +172,126 @@ header {
 .user-profile {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 15px;
 }
 
 .online-indicator {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
     background: #00ff88;
     border-radius: 50%;
-    box-shadow: 0 0 10px #00ff88;
+    box-shadow: 0 0 12px #00ff88;
 }
 
-.brand {
-    font-weight: 900;
-    color: var(--cyber-red);
-    letter-spacing: 2px;
-}
-
-/* MESAJ ALANI */
+/* --- MESAJ ALANI --- */
 .messages-area {
     flex: 1;
     overflow-y: auto;
-    padding: 25px;
+    padding: 30px;
     display: flex;
     flex-direction: column;
     gap: 15px;
-    background: linear-gradient(to bottom, transparent, rgba(255, 0, 60, 0.02));
 }
 
 .msg-item {
-    max-width: 80%;
-    align-self: flex-start;
+    max-width: 75%;
     background: rgba(255, 255, 255, 0.03);
-    padding: 12px 18px;
+    padding: 14px 20px;
     border-radius: 15px;
-    border-left: 3px solid var(--cyber-red);
+    border-left: 4px solid var(--cyber-red);
     animation: msgIn 0.3s ease-out forwards;
 }
 
 @keyframes msgIn {
-    from { opacity: 0; transform: translateX(-10px); }
+    from { opacity: 0; transform: translateX(-20px); }
     to { opacity: 1; transform: translateX(0); }
 }
 
 .m-user {
     display: block;
-    font-size: 0.75rem;
-    font-weight: bold;
+    font-size: 0.8rem;
+    font-weight: 800;
     color: var(--cyber-red);
-    text-transform: uppercase;
-    margin-bottom: 4px;
+    margin-bottom: 5px;
+}
+
+.m-user small {
+    color: #555;
+    margin-left: 8px;
+    font-weight: normal;
 }
 
 .m-text {
+    line-height: 1.6;
     word-wrap: break-word;
-    line-height: 1.5;
 }
 
-/* MESAJ YAZMA ALANI */
+/* --- SİSTEM MESAJI STİLİ --- */
+.system-msg {
+    align-self: center !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-left: none !important;
+    border-top: 1px solid var(--cyber-red) !important;
+    border-bottom: 1px solid var(--cyber-red) !important;
+    text-align: center;
+    max-width: 90% !important;
+    width: fit-content;
+    padding: 8px 30px !important;
+    font-style: italic;
+    border-radius: 0 !important;
+}
+
+.system-msg .m-user {
+    color: #fff !important;
+    text-shadow: 0 0 8px var(--cyber-red-glow);
+    font-size: 0.7rem;
+}
+
+.system-msg .m-text {
+    color: #aaa;
+    font-size: 0.85rem;
+}
+
+/* --- MESAJ YAZMA ALANI --- */
 .input-area {
-    padding: 20px 30px;
+    padding: 25px 35px;
     display: flex;
     gap: 15px;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.4);
 }
 
 .input-area input {
     flex: 1;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.3);
 }
 
 .input-area button {
-    width: 60px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 0;
+    width: 70px;
+    font-size: 1.2rem;
 }
 
-/* Hata Mesajı */
-.error-msg {
-    color: var(--cyber-red);
-    font-size: 0.85rem;
-    margin-top: 15px;
-    font-weight: bold;
+/* --- SPAM OVERLAY --- */
+#spam-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.7);
+    background: rgba(255, 0, 60, 0.95);
+    color: white;
+    padding: 25px 50px;
+    border-radius: 15px;
+    font-weight: 900;
+    font-size: 1.5rem;
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 0 50px var(--cyber-red-glow);
+    text-align: center;
+    border: 2px solid white;
+}
+
+#spam-overlay.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
 }

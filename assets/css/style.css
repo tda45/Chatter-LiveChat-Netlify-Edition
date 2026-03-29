@@ -1,123 +1,250 @@
+/* --- CHATTER PREMIUM CYBER RED THEME --- */
 :root {
     --bg-dark: #050505;
     --cyber-red: #ff003c;
-    --glow: rgba(255, 0, 60, 0.4);
-    --glass: rgba(255, 255, 255, 0.03);
-    --text: #ffffff;
+    --cyber-red-glow: rgba(255, 0, 60, 0.6);
+    --glass-bg: rgba(15, 15, 15, 0.85);
+    --glass-border: rgba(255, 0, 60, 0.2);
+    --text-main: #e0e0e0;
+    --text-dim: #888;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Segoe UI', sans-serif; }
+/* Scrollbar Özelleştirme */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--cyber-red);
+    border-radius: 10px;
+    box-shadow: 0 0 10px var(--cyber-red-glow);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
 
 body {
     background: var(--bg-dark);
-    color: var(--text);
+    background-image: 
+        radial-gradient(circle at 20% 30%, #1a0505 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, #110202 0%, transparent 40%);
+    color: var(--text-main);
     height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
     overflow: hidden;
-    background: radial-gradient(circle at center, #1a0505 0%, #050505 100%);
 }
 
-/* Glassmorphism Temeli */
-.glass-card {
-    background: var(--glass);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
-}
-
-/* Giriş Ekranı */
+/* Giriş ve Chat Panel Geçişleri */
 #login-screen, #chat-screen {
+    display: none;
     width: 100%;
     height: 100%;
-    display: none;
     justify-content: center;
     align-items: center;
     position: absolute;
+    opacity: 0;
+    transition: opacity 0.5s ease;
 }
 
-#login-screen.active, #chat-screen.active { display: flex; animation: fadeIn 0.6s ease; }
+#login-screen.active, #chat-screen.active {
+    display: flex;
+    opacity: 1;
+}
 
+/* Glassmorphism Kart Yapısı */
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    position: relative;
+    overflow: hidden;
+}
+
+/* GİRİŞ KUTUSU */
 .login-box {
-    padding: 3rem;
-    text-align: center;
     width: 400px;
+    padding: 40px;
+    text-align: center;
+    border-top: 2px solid var(--cyber-red);
 }
 
 .neon-text {
-    font-size: 3rem;
-    letter-spacing: 8px;
+    font-size: 3.5rem;
+    font-weight: 900;
     color: var(--cyber-red);
-    text-shadow: 0 0 20px var(--glow);
+    text-shadow: 0 0 15px var(--cyber-red-glow);
+    letter-spacing: 5px;
     margin-bottom: 5px;
 }
 
-.input-group { margin-top: 2rem; display: flex; flex-direction: column; gap: 1rem; }
-
-input {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
-    padding: 15px;
-    border-radius: 10px;
-    color: white;
-    outline: none;
-    transition: 0.3s;
+.subtitle {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 30px;
 }
 
-input:focus { border-color: var(--cyber-red); box-shadow: 0 0 10px var(--glow); }
+/* INPUT VE BUTONLAR */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+input {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 15px 20px;
+    border-radius: 12px;
+    color: #fff;
+    font-size: 1rem;
+    outline: none;
+    transition: var(--transition);
+}
+
+input:focus {
+    border-color: var(--cyber-red);
+    background: rgba(255, 0, 60, 0.05);
+    box-shadow: 0 0 15px rgba(255, 0, 60, 0.1);
+}
 
 button {
     background: var(--cyber-red);
     color: white;
     padding: 15px;
     border: none;
-    border-radius: 10px;
+    border-radius: 12px;
     font-weight: bold;
+    font-size: 1rem;
     cursor: pointer;
-    transition: 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: var(--transition);
 }
 
-button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px var(--glow); }
+button:hover {
+    filter: brightness(1.2);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px var(--cyber-red-glow);
+}
 
-/* Chat Alanı */
+/* CHAT ARAYÜZÜ */
 .chat-container {
-    width: 900px;
-    height: 600px;
+    width: 90%;
+    max-width: 1000px;
+    height: 85vh;
     display: flex;
     flex-direction: column;
+    border: 1px solid rgba(255, 0, 60, 0.1);
 }
 
 header {
-    padding: 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding: 20px 30px;
+    background: rgba(0, 0, 0, 0.2);
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.messages-area {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
+.user-profile {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 12px;
 }
 
-.msg-item {
-    font-size: 0.95rem;
-    line-height: 1.4;
-    padding: 8px 15px;
-    border-radius: 8px;
-    background: rgba(255,255,255,0.02);
+.online-indicator {
+    width: 10px;
+    height: 10px;
+    background: #00ff88;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #00ff88;
 }
 
-.m-time { color: #555; font-size: 0.8rem; margin-right: 10px; }
-.m-user { color: var(--cyber-red); font-weight: bold; margin-right: 10px; }
+.brand {
+    font-weight: 900;
+    color: var(--cyber-red);
+    letter-spacing: 2px;
+}
 
-/* Scrollbar Özelleştirme */
-.messages-area::-webkit-scrollbar { width: 4px; }
-.messages-area::-webkit-scrollbar-thumb { background: var(--cyber-red); }
+/* MESAJ ALANI */
+.messages-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: linear-gradient(to bottom, transparent, rgba(255, 0, 60, 0.02));
+}
 
-@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.msg-item {
+    max-width: 80%;
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 12px 18px;
+    border-radius: 15px;
+    border-left: 3px solid var(--cyber-red);
+    animation: msgIn 0.3s ease-out forwards;
+}
+
+@keyframes msgIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.m-user {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: var(--cyber-red);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.m-text {
+    word-wrap: break-word;
+    line-height: 1.5;
+}
+
+/* MESAJ YAZMA ALANI */
+.input-area {
+    padding: 20px 30px;
+    display: flex;
+    gap: 15px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.input-area input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.input-area button {
+    width: 60px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+}
+
+/* Hata Mesajı */
+.error-msg {
+    color: var(--cyber-red);
+    font-size: 0.85rem;
+    margin-top: 15px;
+    font-weight: bold;
+}

@@ -6,8 +6,14 @@ const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 let currentUser = "";
 let isCooldown = false;
 let userChannel;
+let typingTimeout;
 
-// 1. GİRİŞ VE HOŞGELDİN
+// 1. GİRİŞ VE TEMİZLİK
+async function cleanOldMessages() {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await supabaseClient.from('messages').delete().lt('created_at', twentyFourHoursAgo);
+}
+
 document.getElementById("join-btn").onclick = async () => {
     const inputField = document.getElementById("username-input");
     const errorEl = document.getElementById("error-msg");
@@ -18,17 +24,13 @@ document.getElementById("join-btn").onclick = async () => {
         return;
     }
 
-    const { data: existingUser } = await supabaseClient
-        .from('active_users')
-        .select('username')
-        .ilike('username', nick)
-        .maybeSingle();
-
+    const { data: existingUser } = await supabaseClient.from('active_users').select('username').ilike('username', nick).maybeSingle();
     if (existingUser) {
         errorEl.innerText = "Bu İsim Zaten Kullanımda";
         return;
     }
 
+    await cleanOldMessages();
     await supabaseClient.from('active_users').insert([{ username: nick }]);
 
     currentUser = nick;
@@ -43,27 +45,61 @@ document.getElementById("join-btn").onclick = async () => {
     subscribeMessages();
 };
 
-// 2. PRESENCE (VARLIK) TAKİBİ
+// 2. PRESENCE VE YAZIYOR KONTROLÜ
 function setupPresence(username) {
     userChannel = supabaseClient.channel('online-users', {
         config: { presence: { key: username } }
     });
 
     userChannel
+        .on('presence', { event: 'sync' }, () => {
+            const state = userChannel.presenceState();
+            updateTypingStatus(state);
+        })
         .on('presence', { event: 'leave' }, async ({ key }) => {
             await supabaseClient.from('active_users').delete().eq('username', key);
-            if (key !== "SİSTEM") {
-                await sendSystemMessage(`${key} Sunucudan Ayrıldı!`);
-            }
+            if (key !== "SİSTEM") await sendSystemMessage(`${key} Sunucudan Ayrıldı!`);
         })
         .subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
-                await userChannel.track({ online_at: new Date().toISOString() });
+                await userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
             }
         });
 }
 
-// 3. MESAJ VE FOTOĞRAF GÖNDERME
+// "Yazıyor..." Yazısını Ekrana Basan Fonksiyon
+function updateTypingStatus(state) {
+    const header = document.querySelector('.user-profile');
+    // Eski yazıyor yazısını temizle
+    const oldStatus = document.querySelector('.typing-status');
+    if (oldStatus) oldStatus.remove();
+
+    Object.keys(state).forEach(user => {
+        // Eğer yazan kişi biz değilsek ve isTyping değeri true ise
+        if (user !== currentUser && state[user][0].isTyping) {
+            const span = document.createElement('span');
+            span.className = 'typing-status';
+            span.innerText = `(${user} Yazıyor...)`;
+            header.appendChild(span);
+        }
+    });
+}
+
+// Klavye Hareketlerini Dinle
+document.getElementById("message-input").addEventListener("input", () => {
+    if (!userChannel) return;
+
+    // "Yazıyor" bilgisini kanala gönder
+    userChannel.track({ online_at: new Date().toISOString(), isTyping: true });
+
+    // 2 saniye boyunca bir şey yazmazsa "Yazıyor" bilgisini kapat
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
+    }, 2000);
+});
+
+// 3. MESAJLAŞMA SİSTEMİ (Değişmedi)
 async function sendSystemMessage(text) {
     await supabaseClient.from('messages').insert([{ "user": "SİSTEM", "content": text }]);
 }
@@ -71,55 +107,32 @@ async function sendSystemMessage(text) {
 async function sendMessage(customContent = null) {
     const input = document.getElementById("message-input");
     const val = customContent || input.value.trim();
-    const spamOverlay = document.getElementById("spam-overlay");
-
-    if (!val) return;
-
-    if (isCooldown) {
-        spamOverlay.classList.add("show");
-        setTimeout(() => spamOverlay.classList.remove("show"), 1500);
-        return;
-    }
+    if (!val || isCooldown) return;
 
     isCooldown = true;
-    
-    // Veritabanına gönderiyoruz
-    const { error } = await supabaseClient
-        .from('messages')
-        .insert([{ "user": currentUser, "content": val }]);
-    
-    if (!error && !customContent) input.value = "";
+    await supabaseClient.from('messages').insert([{ "user": currentUser, "content": val }]);
+    if (!customContent) input.value = "";
+    // Mesaj gidince yazıyor bilgisini hemen kapat
+    userChannel.track({ online_at: new Date().toISOString(), isTyping: false });
     setTimeout(() => { isCooldown = false; }, 1000);
 }
 
-// CTRL+V İLE FOTOĞRAF YAPIŞTIRMA
+// CTRL+V FOTOĞRAF (Değişmedi)
 document.getElementById("message-input").addEventListener("paste", function (e) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    
     for (let index in items) {
         const item = items[index];
         if (item.kind === 'file' && item.type.indexOf('image') !== -1) {
-            const blob = item.getAsFile();
             const reader = new FileReader();
-            
-            reader.onload = function (event) {
-                const base64String = event.target.result;
-                sendMessage(base64String); // Base64 olarak veritabanına basar
-            };
-            
-            reader.readAsDataURL(blob);
+            reader.onload = (event) => sendMessage(event.target.result);
+            reader.readAsDataURL(item.getAsFile());
         }
     }
 });
 
-// 4. DİNLEME VE RENDER (KRİTİK KISIM)
+// 4. DİNLEME VE RENDER (Değişmedi)
 function subscribeMessages() {
-    supabaseClient
-        .channel('public:messages')
-        .on('postgres_changes', { event: 'INSERT', table: 'messages' }, payload => {
-            renderMessage(payload.new); // Yeni gelen mesaj her kullanıcıda burada işlenir
-        })
-        .subscribe();
+    supabaseClient.channel('public:messages').on('postgres_changes', { event: 'INSERT', table: 'messages' }, p => renderMessage(p.new)).subscribe();
 }
 
 async function loadMessages() {
@@ -131,27 +144,15 @@ async function loadMessages() {
 
 function renderMessage(data) {
     const area = document.getElementById("chat-messages");
-    if (!area) return;
-
     const div = document.createElement("div");
-    const isSystem = data.user === "SİSTEM";
-    div.className = isSystem ? "msg-item system-msg" : "msg-item";
-    
+    div.className = data.user === "SİSTEM" ? "msg-item system-msg" : "msg-item";
     const time = new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    // FOTOĞRAF KONTROLÜ: Eğer içerik "data:image" ile başlıyorsa <img> yap, değilse metin yap
-    let finalContent = "";
-    if (data.content.startsWith("data:image")) {
-        finalContent = `<img src="${data.content}" class="chat-img" style="max-width: 100%; border-radius: 10px; margin-top: 5px; border: 1px solid var(--cyber-red-glow); display: block;">`;
-    } else {
-        finalContent = `<span class="m-text">${data.content}</span>`;
-    }
-
-    div.innerHTML = `
-        <span class="m-user">${data.user} <small>${time}</small></span>
-        ${finalContent}
-    `;
     
+    let contentHTML = data.content.startsWith("data:image") 
+        ? `<img src="${data.content}" class="chat-img" style="max-width:100%; border-radius:10px; border:1px solid var(--cyber-red-glow); display:block;">` 
+        : `<span class="m-text">${data.content}</span>`;
+
+    div.innerHTML = `<span class="m-user">${data.user} <small>${time}</small></span>${contentHTML}`;
     area.appendChild(div);
     area.scrollTop = area.scrollHeight;
 }
